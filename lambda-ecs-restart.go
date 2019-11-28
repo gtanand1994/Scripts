@@ -47,7 +47,8 @@ func SendSlackNotification(webhookUrl string, msg string) error {
 
 func handleRequest(ctx context.Context, snsEvent events.SNSEvent) (string, error) {
 	svc_name := ""
-	webhookUrl := ""
+// Fill the Slack webhookURL 
+	webhookUrl := "" 
 	for _, record := range snsEvent.Records {
 		snsRecord := record.SNS
 	        s1:= strings.Split(snsRecord.Message, "[")
@@ -61,7 +62,7 @@ func handleRequest(ctx context.Context, snsEvent events.SNSEvent) (string, error
 		fmt.Println(message)
 		err := SendSlackNotification(webhookUrl, message)
     		if err != nil {
-        	
+        		fmt.Println(err)
     		}
 	}
 	
@@ -72,11 +73,12 @@ func handleRequest(ctx context.Context, snsEvent events.SNSEvent) (string, error
 	input := &ecs.DescribeServicesInput{
 	Cluster: aws.String("green-helium-cluster"),
     	Services: []*string{
-        aws.String("svc_name"),
+        aws.String(svc_name),
     	},
 	}
 
 	result, err := svc.DescribeServices(input)
+	fmt.Println("Describe service done")
 	if err != nil {
     	if aerr, ok := err.(awserr.Error); ok {
         	switch aerr.Code() {
@@ -100,13 +102,17 @@ func handleRequest(ctx context.Context, snsEvent events.SNSEvent) (string, error
 	}
 
 // UPDATE STARTS HERE:
+	fmt.Println("Update Starts here")
+	fmt.Println(result)
 
-	s0:= result.String()
-	s1:= strings.Split(s0, "\"deployments\":")
+	s0:= fmt.Sprintf("%v",result)
+	fmt.Println("String conversion")
+	s1:= strings.Split(s0, "Deployments: [{")
+	fmt.Println("Split deployments section")
 	s2:= strings.Split(s1[1],"],")
-	if strings.Contains(s2[0],"\"status\": \"ACTIVE\",") {
-		message:= "Restart is already in progress, skipping restart"
-		_ = SendSlackNotification(webhookUrl, message)
+	fmt.Println("Split deployments section")
+	if strings.Contains(s2[0],"Status: \"ACTIVE\",") {
+		_ = SendSlackNotification(webhookUrl, "Restart is already in progress, skipping restart")
 	        fmt.Println("Restart is already in progress, skipping restart")
 	}else {
 		fmt.Println("initiate restart")
@@ -146,3 +152,9 @@ func handleRequest(ctx context.Context, snsEvent events.SNSEvent) (string, error
 func main() {
 	lambda.Start(handleRequest)
 }
+
+// Steps to deploy the script in lambda.
+// 1. GOARCH=amd64 GOOS=linux go build ecs-memory.go
+// <file_name> = handler name in lambda function = our script filename
+// 2. zip ecs-memory.zip ecs-memory
+// 3. Upload the zip file in lambda console
